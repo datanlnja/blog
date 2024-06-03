@@ -11,6 +11,16 @@
     
     
     <item>
+      <title>clikhouse: changing arrays to JSON</title>
+      <link>/posts/2022-07-06-clickhouse-json-change/</link>
+      <pubDate>Mon, 06 Jan 2020 00:00:00 +0800</pubDate>
+      
+      <guid>/posts/2022-07-06-clickhouse-json-change/</guid>
+      <description>Imagine you have 10 columns with long arrays that you would like to put together into one json field.
+SELECT *, arrayMap(x -&amp;gt; x + 1, range(length(params1))) as len, arrayMap(x -&amp;gt; arrayFilter(y -&amp;gt; y != &amp;#39;&amp;#39;, x),arrayMap(x -&amp;gt; array(arrayElement(params1, x), arrayElement(params2, x), arrayElement(params3, x), arrayElement(params4, x), arrayElement(params5, x), arrayElement(params6, x), arrayElement(params7, x), arrayElement(params8, x), arrayElement(params9, x), arrayElement(params10, x)), len)) as array_array, arrayMap(x -&amp;gt; x[-1], array_array) as value, arrayMap(x -&amp;gt; arrayStringConcat(x, &amp;#39;_&amp;#39;), arrayMap(x -&amp;gt; arrayPopBack(x), array_array)) as key, arrayMap(x -&amp;gt; arrayStringConcat(x, &amp;#39;&amp;#34;:&amp;#34;&amp;#39;), arrayMap(x -&amp;gt; array(arrayElement(key, x), arrayElement(value, x)), len)) as tmp, replaceAll(replaceOne(replaceOne(toString(tmp), &amp;#39;[&amp;#39;, &amp;#39;{&amp;#39;), &amp;#39;]&amp;#39;, &amp;#39;}&amp;#39;), &amp;#39;\&amp;#39;&amp;#39;, &amp;#39;&amp;#34;&amp;#39;) as tmp_json, if(tmp_json = &amp;#39;{&amp;#34;&amp;#34;:&amp;#34;&amp;#34;}&amp;#39;, &amp;#39;&amp;#39;, tmp_json) as params_json FROM table </description>
+    </item>
+    
+    <item>
       <title>ltv using sql and clickhouse</title>
       <link>/posts/2020-07-06-strange-post/</link>
       <pubDate>Mon, 06 Jan 2020 00:00:00 +0800</pubDate>

@@ -39,7 +39,280 @@
     <p>ClickHouse doesn&rsquo;t have window functions, but there is a workaround, arrays, which allow you to process chunks of data lying in the same structure, just like you do in Python with list. In this article I want to tell you about a couple of useful applications of the range() function, which can generate a sequence of integers in an array. And the arrayJoin function knows how to expand data from an array into a column, that&rsquo;s the story around which this article will be <code>arrayJoin(range())</code></p>
 <div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql"><span style="color:#f00">select</span> range(<span style="color:#f60">10</span>)
 </code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql">[<span style="color:#f60">0</span>,<span style="color:#f60">1</span>,<span style="color:#f60">2</span>,<span style="color:#f60">3</span>,<span style="color:#f60">4</span>,<span style="color:#f60">5</span>,<span style="color:#f60">6</span>,<span style="color:#f60">7</span>,<span style="color:#f60">8</span>,<span style="color:#f60">9</span>]
-</code></pre></div>
+</code></pre></div><p>Now let&rsquo;s unwrap the array</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql"><span style="color:#f00">select</span> arrayJoin(range(<span style="color:#f60">10</span>)) <span style="color:#f00">as</span> arr
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql">+<span style="color:#0f0">---+
+</span><span style="color:#0f0"></span>| <span style="color:#f60">0</span> |
+| <span style="color:#f60">2</span> |
+| <span style="color:#f60">3</span> |
+| <span style="color:#f60">4</span> |
+| <span style="color:#f60">5</span> |
+| <span style="color:#f60">6</span> |
+| <span style="color:#f60">7</span> |
+| <span style="color:#f60">8</span> |
+| <span style="color:#f60">9</span> |
++<span style="color:#0f0">---+
+</span></code></pre></div><p><strong>Generating new values for a broken funnel</strong></p>
+<p>So let&rsquo;s define the problem, you have a game (or other service) for which you want to build a funnel, the most common, one problem, your data has a lot of gaps and building a funnel by simple select-it will not work. I propose the following solution.</p>
+<p>Data generation script in ClickHouse</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql"><span style="color:#0f0">/*This is just a small query to generate the data we need,
+</span><span style="color:#0f0">which is where we use arrayJoin*/</span>
+
+<span style="color:#f00">SELECT</span> tupleElement(array, <span style="color:#f60">1</span>) <span style="color:#f00">AS</span> step, <span style="color:#0f0">/* Step */</span>
+ tupleElement(array, <span style="color:#f60">2</span>) <span style="color:#f00">AS</span> UID <span style="color:#0f0">/* User identificator */</span>
+<span style="color:#f00">FROM</span>
+  (<span style="color:#f00">SELECT</span> arrayJoin([(<span style="color:#87ceeb">&#39;step 1&#39;</span>, <span style="color:#f60">1</span>),(<span style="color:#87ceeb">&#39;step 3&#39;</span>, <span style="color:#f60">1</span>), (<span style="color:#87ceeb">&#39;step 2&#39;</span>, <span style="color:#f60">2</span>), (<span style="color:#87ceeb">&#39;step 3&#39;</span>, <span style="color:#f60">2</span>)]) <span style="color:#f00">AS</span> array)
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql">+<span style="color:#0f0">--------+-----+
+</span><span style="color:#0f0"></span>|  step  | uid |
++<span style="color:#0f0">--------+-----+
+</span><span style="color:#0f0"></span>| step <span style="color:#f60">1</span> |   <span style="color:#f60">1</span> |
+| step <span style="color:#f60">3</span> |   <span style="color:#f60">1</span> |
+| step <span style="color:#f60">2</span> |   <span style="color:#f60">2</span> |
+| step <span style="color:#f60">1</span> |   <span style="color:#f60">2</span> |
++<span style="color:#0f0">--------+-----+
+</span></code></pre></div><p>One obvious observation, we always have the last user event, and since we know that the funnel is not growing, we can focus on this event as the final one, and all we have to do is to generate the missing steps of the funnel, that&rsquo;s where range + arrayJoin will help us.</p>
+<p><em>Step 1: Create the necessary sequence of steps we want to see</em></p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql"><span style="color:#f00">SELECT</span> name,
+       step
+<span style="color:#f00">FROM</span>
+  (<span style="color:#f00">SELECT</span> arrayJoin(array((<span style="color:#87ceeb">&#39;step 1&#39;</span>, <span style="color:#f60">1</span>), (<span style="color:#87ceeb">&#39;step 2&#39;</span>, <span style="color:#f60">2</span>), (<span style="color:#87ceeb">&#39;step 3&#39;</span>, <span style="color:#f60">3</span>))) <span style="color:#f00">AS</span> tuple,
+          tupleElement(tuple, <span style="color:#f60">1</span>) <span style="color:#f00">AS</span> name,
+          tupleElement(tuple, <span style="color:#f60">2</span>) <span style="color:#f00">AS</span> step)
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql">+<span style="color:#0f0">--------+--------------+
+</span><span style="color:#0f0"></span>| events | events_index |
++<span style="color:#0f0">--------+--------------+
+</span><span style="color:#0f0"></span>| step <span style="color:#f60">1</span> |            <span style="color:#f60">1</span> |
+| step <span style="color:#f60">2</span> |            <span style="color:#f60">2</span> |
+| step <span style="color:#f60">3</span> |            <span style="color:#f60">3</span> |
++<span style="color:#0f0">--------+--------------+
+</span></code></pre></div><p><em>Step 2: Combine our event data with the table above, where the steps are labeled by number</em></p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql"><span style="color:#f00">SELECT</span> *
+<span style="color:#f00">FROM</span>
+  (<span style="color:#f00">SELECT</span> tupleElement(array, <span style="color:#f60">1</span>) <span style="color:#f00">AS</span> step,
+          tupleElement(array, <span style="color:#f60">2</span>) <span style="color:#f00">AS</span> UID
+   <span style="color:#f00">FROM</span>
+     (<span style="color:#f00">SELECT</span> arrayJoin([(<span style="color:#87ceeb">&#39;step 1&#39;</span>, <span style="color:#f60">1</span>),(<span style="color:#87ceeb">&#39;step 3&#39;</span>, <span style="color:#f60">1</span>), (<span style="color:#87ceeb">&#39;step 2&#39;</span>, <span style="color:#f60">2</span>), (<span style="color:#87ceeb">&#39;step 3&#39;</span>, <span style="color:#f60">2</span>)]) <span style="color:#f00">AS</span> array)) <span style="color:#f00">ANY</span>
+<span style="color:#f00">LEFT</span> <span style="color:#f00">JOIN</span>
+  (<span style="color:#f00">SELECT</span> step_id,
+          step
+   <span style="color:#f00">FROM</span>
+     (<span style="color:#f00">SELECT</span> arrayJoin(array((<span style="color:#87ceeb">&#39;step 1&#39;</span>, <span style="color:#f60">1</span>), (<span style="color:#87ceeb">&#39;step 2&#39;</span>, <span style="color:#f60">2</span>), (<span style="color:#87ceeb">&#39;step 3&#39;</span>, <span style="color:#f60">3</span>))) <span style="color:#f00">AS</span> tuple,
+             tupleElement(tuple, <span style="color:#f60">1</span>) <span style="color:#f00">AS</span> step,
+             tupleElement(tuple, <span style="color:#f60">2</span>) <span style="color:#f00">AS</span> step_id)) <span style="color:#f00">USING</span> step
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql">+<span style="color:#0f0">--------+-----+---------+
+</span><span style="color:#0f0"></span>|  step  | uid | step_id |
++<span style="color:#0f0">--------+-----+---------+
+</span><span style="color:#0f0"></span>| step <span style="color:#f60">1</span> |   <span style="color:#f60">1</span> |       <span style="color:#f60">1</span> |
+| step <span style="color:#f60">3</span> |   <span style="color:#f60">1</span> |       <span style="color:#f60">3</span> |
+| step <span style="color:#f60">2</span> |   <span style="color:#f60">2</span> |       <span style="color:#f60">2</span> |
+| step <span style="color:#f60">3</span> |   <span style="color:#f60">2</span> |       <span style="color:#f60">3</span> |
++<span style="color:#0f0">--------+-----+---------+
+</span></code></pre></div><p>Okay, now each user&rsquo;s eve is labeled with a number in the funnel.</p>
+<p><em>Step 3: A little magic</em></p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql"><span style="color:#f00">SELECT</span> UID,
+       <span style="color:#f00">transform</span>(<span style="color:#f60">1</span> + arrayJoin(range(toUInt8(<span style="color:#f00">max</span>(step_id)))), [<span style="color:#f60">1</span>, <span style="color:#f60">2</span>, <span style="color:#f60">3</span>], [<span style="color:#87ceeb">&#39;step 1&#39;</span>,
+         <span style="color:#87ceeb">&#39;step 2&#39;</span>,
+         <span style="color:#87ceeb">&#39;step 3&#39;</span>], <span style="color:#87ceeb">&#39;none&#39;</span>) <span style="color:#f00">AS</span> q
+<span style="color:#f00">FROM</span>
+  (<span style="color:#f00">SELECT</span> tupleElement(array, <span style="color:#f60">1</span>) <span style="color:#f00">AS</span> step,
+          tupleElement(array, <span style="color:#f60">2</span>) <span style="color:#f00">AS</span> UID
+   <span style="color:#f00">FROM</span>
+     (<span style="color:#f00">SELECT</span> arrayJoin([(<span style="color:#87ceeb">&#39;step 1&#39;</span>, <span style="color:#f60">1</span>),(<span style="color:#87ceeb">&#39;step 3&#39;</span>, <span style="color:#f60">1</span>), (<span style="color:#87ceeb">&#39;step 2&#39;</span>, <span style="color:#f60">2</span>), (<span style="color:#87ceeb">&#39;step 3&#39;</span>, <span style="color:#f60">2</span>)]) <span style="color:#f00">AS</span> array)) <span style="color:#f00">ANY</span>
+<span style="color:#f00">LEFT</span> <span style="color:#f00">JOIN</span>
+  (<span style="color:#f00">SELECT</span> step_id,
+          step
+   <span style="color:#f00">FROM</span>
+     (<span style="color:#f00">SELECT</span> arrayJoin(array((<span style="color:#87ceeb">&#39;step 1&#39;</span>, <span style="color:#f60">1</span>), (<span style="color:#87ceeb">&#39;step 2&#39;</span>, <span style="color:#f60">2</span>), (<span style="color:#87ceeb">&#39;step 3&#39;</span>, <span style="color:#f60">3</span>))) <span style="color:#f00">AS</span> tuple,
+             tupleElement(tuple, <span style="color:#f60">1</span>) <span style="color:#f00">AS</span> step,
+             tupleElement(tuple, <span style="color:#f60">2</span>) <span style="color:#f00">AS</span> step_id)) <span style="color:#f00">USING</span> step
+<span style="color:#f00">GROUP</span> <span style="color:#f00">BY</span> UID
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql">+<span style="color:#0f0">-----+--------+
+</span><span style="color:#0f0"></span>| uid |   q    |
++<span style="color:#0f0">-----+--------+
+</span><span style="color:#0f0"></span>|   <span style="color:#f60">1</span> | step <span style="color:#f60">1</span> |
+|   <span style="color:#f60">1</span> | step <span style="color:#f60">2</span> |
+|   <span style="color:#f60">1</span> | step <span style="color:#f60">3</span> |
+|   <span style="color:#f60">2</span> | step <span style="color:#f60">1</span> |
+|   <span style="color:#f60">2</span> | step <span style="color:#f60">2</span> |
+|   <span style="color:#f60">2</span> | step <span style="color:#f60">3</span> |
++<span style="color:#0f0">-----+--------+
+</span></code></pre></div><p><em>max(step_id) -&gt; toUInt8() -&gt; range() -&gt; arrayJoin() -&gt; 1+ -&gt; transform()</em></p>
+<p>First we took the maximum achieved user step, converted the value type (range requirement), then formed an array, expanded it, added 1 to start with 1 (although this is optional) and applied transform (it&rsquo;s kind of like a case for arrays)</p>
+<p>So we got what we wanted from the table where part of the data was missing, we filled it with the necessary values.</p>
+<p>P.S If suddenly you ask why it is necessary? Reasonable question, you could just group the data by events and calculate the cumulative from bottom to top, and get the same result, the problem is that the business does not stand still, and perhaps tomorrow you need to add a new feature for the user (for example, his gender), and then you will not have to add a small section of the query (Join to users), and rewrite it completely. Everything described above is typical only for ClickHouse. In other databases it is possible to realize this task a little easier.</p>
+<p><strong>Prediction in SQL via linear regression</strong></p>
+<p>I wrote this query when I was doing forecasting for a free-to-play game, the task was simple, to realize a forecast that could be supported by BI analysts. The essence of the method is quite simple, in video games I often use such a method of forecasting with the accumulation of ARPU/ARPPU, it is approximated by some polynomial (or logarithm) and output what is called LTV.</p>
+<p><em>Dataset generation</em></p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql"><span style="color:#f00">SELECT</span> tupleElement(array, <span style="color:#f60">1</span>) <span style="color:#f00">AS</span> cohort,
+       toUInt16(tupleElement(array, <span style="color:#f60">2</span>)) <span style="color:#f00">AS</span> <span style="color:#f00">DAY</span>,
+       tupleElement(array, <span style="color:#f60">3</span>) <span style="color:#f00">AS</span> value
+<span style="color:#f00">FROM</span>
+  (<span style="color:#f00">SELECT</span> arrayJoin([(<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">1</span>, <span style="color:#f60">10</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">2</span>, <span style="color:#f60">100</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">3</span>, <span style="color:#f60">200</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">4</span>, <span style="color:#f60">300</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">2</span>, <span style="color:#f60">10</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">3</span>, <span style="color:#f60">100</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">5</span>, <span style="color:#f60">200</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">8</span>, <span style="color:#f60">300</span>)]) <span style="color:#f00">AS</span> array)
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql">+<span style="color:#0f0">----------+-----+-------+
+</span><span style="color:#0f0"></span>|  cohort  | <span style="color:#f00">day</span> | value |
++<span style="color:#0f0">----------+-----+-------+
+</span><span style="color:#0f0"></span>| cohort <span style="color:#f60">1</span> |   <span style="color:#f60">1</span> |    <span style="color:#f60">10</span> |
+| cohort <span style="color:#f60">1</span> |   <span style="color:#f60">2</span> |   <span style="color:#f60">100</span> |
+| cohort <span style="color:#f60">1</span> |   <span style="color:#f60">3</span> |   <span style="color:#f60">200</span> |
+| cohort <span style="color:#f60">1</span> |   <span style="color:#f60">4</span> |   <span style="color:#f60">300</span> |
+| cohort <span style="color:#f60">2</span> |   <span style="color:#f60">2</span> |    <span style="color:#f60">10</span> |
+| cohort <span style="color:#f60">2</span> |   <span style="color:#f60">3</span> |   <span style="color:#f60">100</span> |
+| cohort <span style="color:#f60">2</span> |   <span style="color:#f60">5</span> |   <span style="color:#f60">200</span> |
+| cohort <span style="color:#f60">2</span> |   <span style="color:#f60">6</span> |   <span style="color:#f60">300</span> |
++<span style="color:#0f0">----------+-----+-------+
+</span></code></pre></div><p>An important feature, I do not take completely raw data that you are likely to work with, in my case each cohort has an already read index of the first entry. In our dataset we have, a cohort (known in advance), the day of life of the cohort, and its earnings in money. All we have to do is fill in the blanks, in the algorithm they cannot be left blank, and make a prediction.</p>
+<p><em>Step 1: Generate all days of the cohort&rsquo;s lifetime</em></p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql"><span style="color:#f00">SELECT</span> *
+<span style="color:#f00">FROM</span>
+  (<span style="color:#f00">SELECT</span> cohort,
+          day1 <span style="color:#f00">AS</span> <span style="color:#f00">DAY</span>
+   <span style="color:#f00">FROM</span>
+     (<span style="color:#f00">SELECT</span> cohort,
+             <span style="color:#f00">max</span>(<span style="color:#f00">DAY</span>) <span style="color:#f00">AS</span> last_login,
+             arrayJoin(range(last_login)) + <span style="color:#f60">1</span> <span style="color:#f00">AS</span> day1
+      <span style="color:#f00">FROM</span>
+        (<span style="color:#f00">SELECT</span> tupleElement(array, <span style="color:#f60">1</span>) <span style="color:#f00">AS</span> cohort,
+                tupleElement(array, <span style="color:#f60">2</span>) <span style="color:#f00">AS</span> <span style="color:#f00">DAY</span>,
+                tupleElement(array, <span style="color:#f60">3</span>) <span style="color:#f00">AS</span> value
+         <span style="color:#f00">FROM</span>
+           (<span style="color:#f00">SELECT</span> arrayJoin([(<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">1</span>, <span style="color:#f60">10</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">2</span>, <span style="color:#f60">100</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">3</span>, <span style="color:#f60">200</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">4</span>, <span style="color:#f60">300</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">2</span>, <span style="color:#f60">10</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">3</span>, <span style="color:#f60">100</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">5</span>, <span style="color:#f60">200</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">6</span>, <span style="color:#f60">300</span>)]) <span style="color:#f00">AS</span> array))
+      <span style="color:#f00">GROUP</span> <span style="color:#f00">BY</span> cohort)) <span style="color:#f00">ANY</span>
+<span style="color:#f00">LEFT</span> <span style="color:#f00">JOIN</span>
+  (<span style="color:#f00">SELECT</span> tupleElement(array, <span style="color:#f60">1</span>) <span style="color:#f00">AS</span> cohort,
+          toUInt16(tupleElement(array, <span style="color:#f60">2</span>)) <span style="color:#f00">AS</span> <span style="color:#f00">DAY</span>,
+          tupleElement(array, <span style="color:#f60">3</span>) <span style="color:#f00">AS</span> value
+   <span style="color:#f00">FROM</span>
+     (<span style="color:#f00">SELECT</span> arrayJoin([(<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">1</span>, <span style="color:#f60">10</span>),(<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">2</span>, <span style="color:#f60">100</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">3</span>, <span style="color:#f60">200</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">4</span>, <span style="color:#f60">300</span>),
+                       (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">2</span>, <span style="color:#f60">10</span>),(<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">3</span>, <span style="color:#f60">100</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">5</span>, <span style="color:#f60">200</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">6</span>, <span style="color:#f60">300</span>)]) <span style="color:#f00">AS</span> array)) <span style="color:#f00">USING</span> (cohort,
+                                                                                                                                <span style="color:#f00">DAY</span>)
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql">+<span style="color:#0f0">----------+-----+-------+
+</span><span style="color:#0f0"></span>|  cohort  | <span style="color:#f00">day</span> | value |
++<span style="color:#0f0">----------+-----+-------+
+</span><span style="color:#0f0"></span>| cohort <span style="color:#f60">2</span> |   <span style="color:#f60">1</span> |     <span style="color:#f60">0</span> |
+| cohort <span style="color:#f60">2</span> |   <span style="color:#f60">2</span> |    <span style="color:#f60">10</span> |
+| cohort <span style="color:#f60">2</span> |   <span style="color:#f60">3</span> |   <span style="color:#f60">100</span> |
+| cohort <span style="color:#f60">2</span> |   <span style="color:#f60">4</span> |     <span style="color:#f60">0</span> |
+| cohort <span style="color:#f60">2</span> |   <span style="color:#f60">5</span> |   <span style="color:#f60">200</span> |
+| cohort <span style="color:#f60">2</span> |   <span style="color:#f60">6</span> |   <span style="color:#f60">300</span> |
+| cohort <span style="color:#f60">1</span> |   <span style="color:#f60">1</span> |    <span style="color:#f60">10</span> |
+| cohort <span style="color:#f60">1</span> |   <span style="color:#f60">2</span> |   <span style="color:#f60">100</span> |
+| cohort <span style="color:#f60">1</span> |   <span style="color:#f60">3</span> |   <span style="color:#f60">200</span> |
+| cohort <span style="color:#f60">1</span> |   <span style="color:#f60">4</span> |   <span style="color:#f60">300</span> |
++<span style="color:#0f0">----------+-----+-------+
+</span></code></pre></div><p><em>Step 2: Well, now let&rsquo;s roll everything up into arrays again&hellip;what?</em></p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql"><span style="color:#f00">SELECT</span> cohort,
+       groupArray(<span style="color:#f00">DAY</span>) <span style="color:#f00">AS</span> X,
+       arrayCumSum(groupArray(value)) <span style="color:#f00">AS</span> y
+<span style="color:#f00">FROM</span>
+  (<span style="color:#f00">SELECT</span> *
+   <span style="color:#f00">FROM</span>
+     (<span style="color:#f00">SELECT</span> cohort,
+             day1 <span style="color:#f00">AS</span> <span style="color:#f00">DAY</span>
+      <span style="color:#f00">FROM</span>
+        (<span style="color:#f00">SELECT</span> cohort,
+                <span style="color:#f00">max</span>(<span style="color:#f00">DAY</span>) <span style="color:#f00">AS</span> last_login,
+                arrayJoin(range(last_login)) + <span style="color:#f60">1</span> <span style="color:#f00">AS</span> day1
+         <span style="color:#f00">FROM</span>
+           (<span style="color:#f00">SELECT</span> tupleElement(array, <span style="color:#f60">1</span>) <span style="color:#f00">AS</span> cohort,
+                   tupleElement(array, <span style="color:#f60">2</span>) <span style="color:#f00">AS</span> <span style="color:#f00">DAY</span>,
+                   tupleElement(array, <span style="color:#f60">3</span>) <span style="color:#f00">AS</span> value
+            <span style="color:#f00">FROM</span>
+              (<span style="color:#f00">SELECT</span> arrayJoin([(<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">1</span>, <span style="color:#f60">10</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">2</span>, <span style="color:#f60">100</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">3</span>, <span style="color:#f60">200</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">4</span>, <span style="color:#f60">300</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">2</span>, <span style="color:#f60">10</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">3</span>, <span style="color:#f60">100</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">5</span>, <span style="color:#f60">200</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">8</span>, <span style="color:#f60">300</span>)]) <span style="color:#f00">AS</span> array))
+         <span style="color:#f00">GROUP</span> <span style="color:#f00">BY</span> cohort)) <span style="color:#f00">ANY</span>
+   <span style="color:#f00">LEFT</span> <span style="color:#f00">JOIN</span>
+     (<span style="color:#f00">SELECT</span> tupleElement(array, <span style="color:#f60">1</span>) <span style="color:#f00">AS</span> cohort,
+             toUInt16(tupleElement(array, <span style="color:#f60">2</span>)) <span style="color:#f00">AS</span> <span style="color:#f00">DAY</span>,
+             tupleElement(array, <span style="color:#f60">3</span>) <span style="color:#f00">AS</span> value
+      <span style="color:#f00">FROM</span>
+        (<span style="color:#f00">SELECT</span> arrayJoin([(<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">1</span>, <span style="color:#f60">10</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">2</span>, <span style="color:#f60">100</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">3</span>, <span style="color:#f60">200</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">4</span>, <span style="color:#f60">300</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">2</span>, <span style="color:#f60">10</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">3</span>, <span style="color:#f60">100</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">5</span>, <span style="color:#f60">200</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">8</span>, <span style="color:#f60">300</span>)]) <span style="color:#f00">AS</span> array)) <span style="color:#f00">USING</span> (cohort,
+                                                                                                                                                                                                                            <span style="color:#f00">DAY</span>))
+<span style="color:#f00">GROUP</span> <span style="color:#f00">BY</span> cohort
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql">+<span style="color:#0f0">----------+-------------------+--------------------------------+
+</span><span style="color:#0f0"></span>|  cohort  |         X         |               y                |
++<span style="color:#0f0">----------+-------------------+--------------------------------+
+</span><span style="color:#0f0"></span>| cohort <span style="color:#f60">2</span> | [<span style="color:#f60">1</span>,<span style="color:#f60">2</span>,<span style="color:#f60">3</span>,<span style="color:#f60">4</span>,<span style="color:#f60">5</span>,<span style="color:#f60">6</span>,<span style="color:#f60">7</span>,<span style="color:#f60">8</span>] | [<span style="color:#f60">0</span>,<span style="color:#f60">10</span>,<span style="color:#f60">110</span>,<span style="color:#f60">110</span>,<span style="color:#f60">310</span>,<span style="color:#f60">310</span>,<span style="color:#f60">310</span>,<span style="color:#f60">610</span>] |
+| cohort <span style="color:#f60">1</span> | [<span style="color:#f60">1</span>,<span style="color:#f60">2</span>,<span style="color:#f60">3</span>,<span style="color:#f60">4</span>]         | [<span style="color:#f60">10</span>,<span style="color:#f60">110</span>,<span style="color:#f60">310</span>,<span style="color:#f60">610</span>]               |
++<span style="color:#0f0">----------+-------------------+--------------------------------+
+</span></code></pre></div><p>And so, it&rsquo;s very simple here, we just pack the days and values into 2 arrays, label them X, y.</p>
+<p><em>Step 3: Forecasting</em></p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql"><span style="color:#f00">SELECT</span> cohort,
+       groupArray(<span style="color:#f00">DAY</span>) <span style="color:#f00">AS</span> X,
+       arrayCumSum(groupArray(value)) <span style="color:#f00">AS</span> y,
+       arrayMap(x -&gt; ln(x + <span style="color:#f60">2</span>), X) <span style="color:#f00">AS</span> X_ln, <span style="color:#0f0">/* Преобразуем независимую переменную, это позволит сгладить прогноз */</span>
+ arrayReduce(<span style="color:#87ceeb">&#39;simpleLinearRegression&#39;</span>, X_ln, y) <span style="color:#f00">AS</span> coef, <span style="color:#0f0">/* Собственно расчет коэффициентов (используется аналитическое решение)*/</span>
+ <span style="color:#0f0">/* Все последующие преобразования нужны для прогноза выручки на N день */</span>
+ <span style="color:#f00">length</span>(X_ln) <span style="color:#f00">AS</span> count_days,
+ arrayMap(x -&gt; ln(x + <span style="color:#f60">2</span>), range(<span style="color:#f00">length</span>(X_ln) + <span style="color:#f60">30</span>)) <span style="color:#f00">AS</span> days_predict,
+ tupleElement(coef, <span style="color:#f60">1</span>) <span style="color:#f00">AS</span> coef_a,
+ tupleElement(coef, <span style="color:#f60">2</span>) <span style="color:#f00">AS</span> coef_b,
+ arrayMap(x -&gt; x*coef_a + coef_b, days_predict) <span style="color:#f00">AS</span> array_predict
+<span style="color:#f00">FROM</span>
+  (<span style="color:#f00">SELECT</span> *
+   <span style="color:#f00">FROM</span>
+     (<span style="color:#f00">SELECT</span> cohort,
+             day1 <span style="color:#f00">AS</span> <span style="color:#f00">DAY</span>
+      <span style="color:#f00">FROM</span>
+        (<span style="color:#f00">SELECT</span> cohort,
+                <span style="color:#f00">max</span>(<span style="color:#f00">DAY</span>) <span style="color:#f00">AS</span> last_login,
+                arrayJoin(range(last_login)) + <span style="color:#f60">1</span> <span style="color:#f00">AS</span> day1
+         <span style="color:#f00">FROM</span>
+           (<span style="color:#f00">SELECT</span> tupleElement(array, <span style="color:#f60">1</span>) <span style="color:#f00">AS</span> cohort,
+                   tupleElement(array, <span style="color:#f60">2</span>) <span style="color:#f00">AS</span> <span style="color:#f00">DAY</span>,
+                   tupleElement(array, <span style="color:#f60">3</span>) <span style="color:#f00">AS</span> value
+            <span style="color:#f00">FROM</span>
+              (<span style="color:#f00">SELECT</span> arrayJoin([(<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">1</span>, <span style="color:#f60">10</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">2</span>, <span style="color:#f60">100</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">3</span>, <span style="color:#f60">200</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">4</span>, <span style="color:#f60">300</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">2</span>, <span style="color:#f60">10</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">3</span>, <span style="color:#f60">100</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">5</span>, <span style="color:#f60">200</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">8</span>, <span style="color:#f60">300</span>)]) <span style="color:#f00">AS</span> array))
+         <span style="color:#f00">GROUP</span> <span style="color:#f00">BY</span> cohort)) <span style="color:#f00">ANY</span>
+   <span style="color:#f00">LEFT</span> <span style="color:#f00">JOIN</span>
+     (<span style="color:#f00">SELECT</span> tupleElement(array, <span style="color:#f60">1</span>) <span style="color:#f00">AS</span> cohort,
+             toUInt16(tupleElement(array, <span style="color:#f60">2</span>)) <span style="color:#f00">AS</span> <span style="color:#f00">DAY</span>,
+             tupleElement(array, <span style="color:#f60">3</span>) <span style="color:#f00">AS</span> value
+      <span style="color:#f00">FROM</span>
+        (<span style="color:#f00">SELECT</span> arrayJoin([(<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">1</span>, <span style="color:#f60">10</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">2</span>, <span style="color:#f60">100</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">3</span>, <span style="color:#f60">200</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">4</span>, <span style="color:#f60">300</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">2</span>, <span style="color:#f60">10</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">3</span>, <span style="color:#f60">100</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">5</span>, <span style="color:#f60">200</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">8</span>, <span style="color:#f60">300</span>)]) <span style="color:#f00">AS</span> array)) <span style="color:#f00">USING</span> (cohort,
+                                                                                                                                                                                                                            <span style="color:#f00">DAY</span>))
+<span style="color:#f00">GROUP</span> <span style="color:#f00">BY</span> cohort
+</code></pre></div><p>Well, we have the forecast, but it lies in an array and we need to unpack it. That&rsquo;s what we&rsquo;ll do.</p>
+<p><em>Step 4: Prepare data for BI</em></p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql"><span style="color:#f00">SELECT</span> cohort,
+       arrayJoin(range(count_days + <span style="color:#f60">30</span>)) <span style="color:#f00">AS</span> index_days,
+       arrayElement(array_predict, index_days + <span style="color:#f60">1</span>) <span style="color:#f00">AS</span> predict,
+       arrayElement(y, index_days + <span style="color:#f60">1</span>) <span style="color:#f00">AS</span> revenue
+<span style="color:#f00">FROM</span>
+  (<span style="color:#f00">SELECT</span> cohort,
+          groupArray(<span style="color:#f00">DAY</span>) <span style="color:#f00">AS</span> X,
+          arrayCumSum(groupArray(value)) <span style="color:#f00">AS</span> y,
+          arrayMap(x -&gt; ln(x + <span style="color:#f60">2</span>), X) <span style="color:#f00">AS</span> X_ln,
+          arrayReduce(<span style="color:#87ceeb">&#39;simpleLinearRegression&#39;</span>, X_ln, y) <span style="color:#f00">AS</span> coef,
+          <span style="color:#f00">length</span>(X_ln) <span style="color:#f00">AS</span> count_days,
+          arrayMap(x -&gt; ln(x + <span style="color:#f60">2</span>), range(<span style="color:#f00">length</span>(X_ln) + <span style="color:#f60">30</span>)) <span style="color:#f00">AS</span> days_predict,
+          tupleElement(coef, <span style="color:#f60">1</span>) <span style="color:#f00">AS</span> coef_a,
+          tupleElement(coef, <span style="color:#f60">2</span>) <span style="color:#f00">AS</span> coef_b,
+          arrayMap(x -&gt; x * coef_a + coef_b, days_predict) <span style="color:#f00">AS</span> array_predict
+   <span style="color:#f00">FROM</span>
+     (<span style="color:#f00">SELECT</span> *
+      <span style="color:#f00">FROM</span>
+        (<span style="color:#f00">SELECT</span> cohort,
+                day1 <span style="color:#f00">AS</span> <span style="color:#f00">DAY</span>
+         <span style="color:#f00">FROM</span>
+           (<span style="color:#f00">SELECT</span> cohort,
+                   <span style="color:#f00">max</span>(<span style="color:#f00">DAY</span>) <span style="color:#f00">AS</span> last_login,
+                   arrayJoin(range(last_login)) + <span style="color:#f60">1</span> <span style="color:#f00">AS</span> day1
+            <span style="color:#f00">FROM</span>
+              (<span style="color:#f00">SELECT</span> tupleElement(array, <span style="color:#f60">1</span>) <span style="color:#f00">AS</span> cohort,
+                      tupleElement(array, <span style="color:#f60">2</span>) <span style="color:#f00">AS</span> <span style="color:#f00">DAY</span>,
+                      tupleElement(array, <span style="color:#f60">3</span>) <span style="color:#f00">AS</span> value
+               <span style="color:#f00">FROM</span>
+                 (<span style="color:#f00">SELECT</span> arrayJoin([(<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">1</span>, <span style="color:#f60">10</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">2</span>, <span style="color:#f60">100</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">3</span>, <span style="color:#f60">200</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">4</span>, <span style="color:#f60">300</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">2</span>, <span style="color:#f60">10</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">3</span>, <span style="color:#f60">100</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">5</span>, <span style="color:#f60">200</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">8</span>, <span style="color:#f60">300</span>)]) <span style="color:#f00">AS</span> array))
+            <span style="color:#f00">GROUP</span> <span style="color:#f00">BY</span> cohort)) <span style="color:#f00">ANY</span>
+      <span style="color:#f00">LEFT</span> <span style="color:#f00">JOIN</span>
+        (<span style="color:#f00">SELECT</span> tupleElement(array, <span style="color:#f60">1</span>) <span style="color:#f00">AS</span> cohort,
+                toUInt16(tupleElement(array, <span style="color:#f60">2</span>)) <span style="color:#f00">AS</span> <span style="color:#f00">DAY</span>,
+                tupleElement(array, <span style="color:#f60">3</span>) <span style="color:#f00">AS</span> value
+         <span style="color:#f00">FROM</span>
+           (<span style="color:#f00">SELECT</span> arrayJoin([(<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">1</span>, <span style="color:#f60">10</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">2</span>, <span style="color:#f60">100</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">3</span>, <span style="color:#f60">200</span>), (<span style="color:#87ceeb">&#39;cohort 1&#39;</span>, <span style="color:#f60">4</span>, <span style="color:#f60">300</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">2</span>, <span style="color:#f60">10</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">3</span>, <span style="color:#f60">100</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">5</span>, <span style="color:#f60">200</span>), (<span style="color:#87ceeb">&#39;cohort 2&#39;</span>, <span style="color:#f60">8</span>, <span style="color:#f60">300</span>)]) <span style="color:#f00">AS</span> array)) <span style="color:#f00">USING</span> (cohort,
+                                                                                                                                                                                                                               <span style="color:#f00">DAY</span>))
+   <span style="color:#f00">GROUP</span> <span style="color:#f00">BY</span> cohort)
+</code></pre></div><p>This method does not claim to be super accurate, unique and that&rsquo;s about it. It is one way to solve a small problem, just to buy time and make a quality prediction model.</p>
+
 </article>
 
             </div>

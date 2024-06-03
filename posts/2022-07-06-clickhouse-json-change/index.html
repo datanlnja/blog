@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang=""><head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+   <meta name="description" content="Imagine you have 10 columns with long arrays that you would like to put together into one json field.
+SELECT *, arrayMap(x -&gt; x &#43; 1, range(length(params1))) as len, arrayMap(x -&gt; arrayFilter(y -&gt; y != &#39;&#39;, x),arrayMap(x -&gt; array(arrayElement(params1, x), arrayElement(params2, x), arrayElement(params3, x), arrayElement(params4, x), arrayElement(params5, x), arrayElement(params6, x), arrayElement(params7, x), arrayElement(params8, x), arrayElement(params9, x), arrayElement(params10, x)), len)) as array_array, arrayMap(x -&gt; x[-1], array_array) as value, arrayMap(x -&gt; arrayStringConcat(x, &#39;_&#39;), arrayMap(x -&gt; arrayPopBack(x), array_array)) as key, arrayMap(x -&gt; arrayStringConcat(x, &#39;&#34;:&#34;&#39;), arrayMap(x -&gt; array(arrayElement(key, x), arrayElement(value, x)), len)) as tmp, replaceAll(replaceOne(replaceOne(toString(tmp), &#39;[&#39;, &#39;{&#39;), &#39;]&#39;, &#39;}&#39;), &#39;\&#39;&#39;, &#39;&#34;&#39;) as tmp_json, if(tmp_json = &#39;{&#34;&#34;:&#34;&#34;}&#39;, &#39;&#39;, tmp_json) as params_json FROM table ">  
+
+  <title>
+    
+      clikhouse: changing arrays to JSON
+    
+  </title>
+
+
+  <link rel="shortcut icon" type="image/x-icon" href="/" />
+  
+  
+  
+  <link rel="stylesheet" href="/css/main.c5af9bae99b4a3d315b9f39305ffff27e9c3383fbbfd8b5fcaf2237667021a333a982fb958d1813a720b0a660b14022337553ae1ca93ef2ee17c4ae628ac19cb.css" integrity="sha512-xa&#43;brpm0o9MVufOTBf//J&#43;nDOD&#43;7/YtfyvIjdmcCGjM6mC&#43;5WNGBOnILCmYLFAIjN1U64cqT7y7hfErmKKwZyw==" />
+  
+</head>
+<body a="white">
+        <main class="page-content" aria-label="Content">
+            <div class="w">
+<a href="/">帰る</a>
+
+
+<article>
+    <p class="post-meta">
+        <time datetime="2020-01-06 00:00:00 &#43;0800 &#43;0800">
+            2020
+        </time>
+    </p>
+
+    <h1>clikhouse: changing arrays to JSON</h1>
+
+    
+
+    <p>Imagine you have 10 columns with long arrays that you would like to put together into one json field.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql"><span style="color:#f00">SELECT</span>
+    *,
+    arrayMap(x -&gt; x + <span style="color:#f60">1</span>, range(<span style="color:#f00">length</span>(params1))) <span style="color:#f00">as</span> len,
+    arrayMap(x -&gt;  arrayFilter(y -&gt; y != <span style="color:#87ceeb">&#39;&#39;</span>, x),arrayMap(x -&gt; array(arrayElement(params1, x),
+                        arrayElement(params2, x),
+                        arrayElement(params3, x),
+                        arrayElement(params4, x),
+                        arrayElement(params5, x),
+                        arrayElement(params6, x),
+                        arrayElement(params7, x),
+                        arrayElement(params8, x),
+                        arrayElement(params9, x),
+                        arrayElement(params10, x)), len)) <span style="color:#f00">as</span> array_array,
+        arrayMap(x -&gt; x[-<span style="color:#f60">1</span>], array_array) <span style="color:#f00">as</span> value,
+        arrayMap(x -&gt; arrayStringConcat(x, <span style="color:#87ceeb">&#39;_&#39;</span>), arrayMap(x -&gt; arrayPopBack(x), array_array)) <span style="color:#f00">as</span> <span style="color:#f00">key</span>,
+        arrayMap(x -&gt; arrayStringConcat(x, <span style="color:#87ceeb">&#39;&#34;:&#34;&#39;</span>), arrayMap(x -&gt; array(arrayElement(<span style="color:#f00">key</span>, x), arrayElement(value, x)), len)) <span style="color:#f00">as</span> tmp,
+        replaceAll(replaceOne(replaceOne(toString(tmp), <span style="color:#87ceeb">&#39;[&#39;</span>, <span style="color:#87ceeb">&#39;{&#39;</span>), <span style="color:#87ceeb">&#39;]&#39;</span>, <span style="color:#87ceeb">&#39;}&#39;</span>), <span style="color:#87ceeb">&#39;\&#39;&#39;, &#39;</span><span style="color:#87ceeb">&#34;&#39;) as tmp_json,
+</span><span style="color:#87ceeb">        if(tmp_json = &#39;{&#34;&#34;:&#34;&#34;}&#39;, &#39;&#39;, tmp_json) as params_json
+</span><span style="color:#87ceeb">FROM table
+</span></code></pre></div>
+</article>
+
+            </div>
+        </main>
+    </body></html>
