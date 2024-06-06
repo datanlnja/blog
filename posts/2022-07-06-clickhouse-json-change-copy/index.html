@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang=""><head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+   <meta name="description" content="In my courses and at work I often use Google Colab, with this tool you can write not only Pure Python code, but also deploy full-fledged applications, for debugging or development purposes of course. For this purpose I use a well-known trick, when a local host is tipped to the internet, for example via ngrok (free service at the time of writing).
+Google Colab itself is a very small virtual machine with limited permissions and resource consumption, however it can understand simple bash commands and networking, which is very useful for us.">  
+
+  <title>
+    
+      google colab in online education
+    
+  </title>
+
+
+  <link rel="shortcut icon" type="image/x-icon" href="/" />
+  
+  
+  
+  <link rel="stylesheet" href="/css/main.c5af9bae99b4a3d315b9f39305ffff27e9c3383fbbfd8b5fcaf2237667021a333a982fb958d1813a720b0a660b14022337553ae1ca93ef2ee17c4ae628ac19cb.css" integrity="sha512-xa&#43;brpm0o9MVufOTBf//J&#43;nDOD&#43;7/YtfyvIjdmcCGjM6mC&#43;5WNGBOnILCmYLFAIjN1U64cqT7y7hfErmKKwZyw==" />
+  
+</head>
+<body a="white">
+        <main class="page-content" aria-label="Content">
+            <div class="w">
+<a href="/">帰る</a>
+
+
+<article>
+    <p class="post-meta">
+        <time datetime="2021-01-06 00:00:00 &#43;0800 &#43;0800">
+            2021
+        </time>
+    </p>
+
+    <h1>google colab in online education</h1>
+
+    
+
+    <p>In my courses and at work I often use Google Colab, with this tool you can write not only Pure Python code, but also deploy full-fledged applications, for debugging or development purposes of course. For this purpose I use a well-known trick, when a local host is tipped to the internet, for example via ngrok (free service at the time of writing).</p>
+<p>Google Colab itself is a very small virtual machine with limited permissions and resource consumption, however it can understand simple bash commands and networking, which is very useful for us.</p>
+<p>Let me show you how it can be realised on the example of Superset service.</p>
+<p>Go to the official site with the installation documentation, and enter the command set into our Google Colab. The use of ! should be used as a sign that we want to execute the bash script, nohup will start the process as a daemon.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">!pip install apache-superset
+!superset db upgrade
+!superset fab create-admin (you have to enter the user and password manually)
+!superset load_examples
+!superset init
+!nohup superset run -p <span style="color:#f60">8088</span> --with-threads --reload --debugger
+</code></pre></div><p><a href="https://colab.research.google.com/drive/1CsyqZ7bPwyfoMkhOjv0ALxk8_KOh5E2j?usp=sharing">Link</a> to this laptop so you can run and test it yourself.</p>
+<p>Then install ngrok to translate ports from the local host to the internet</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">!pip install pyngrok
+<span style="color:#0f0"># token https://dashboard.ngrok.com/get-started/setup</span>
+!ngrok authtoken &lt;YOUR TOKEN&gt; 
+
+<span style="color:#0f0"># This command just maps the web face to another address</span>
+<span style="color:#0f0"># You can find it at https://dashboard.ngrok.com/endpoints/status</span>
+<span style="color:#0f0"># Each time you switch off the link will change</span>
+!nohup ngrok http -log=stdout <span style="color:#f60">8088</span> &gt; /dev/null &amp;
+</code></pre></div><p>Result: it opens on the internet and can be shown to anyone.</p>
+<p><em>Other examples of laptops</em></p>
+<ul>
+<li><a href="https://colab.research.google.com/drive/1Im7wHJx10n1VgObbX_0qKHNpRJCsVLPW?usp=sharing">Airflow</a></li>
+<li><a href="https://colab.research.google.com/drive/1xOJKraWREPtDZZknzhfgKWyBxn9vH2dm?usp=sharing">ClickHouse</a></li>
+</ul>
+
+</article>
+
+            </div>
+        </main>
+    </body></html>

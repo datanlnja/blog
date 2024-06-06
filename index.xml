@@ -13,7 +13,7 @@
     <item>
       <title>clikhouse: changing arrays to JSON</title>
       <link>/posts/2022-07-06-clickhouse-json-change/</link>
-      <pubDate>Mon, 06 Jan 2020 00:00:00 +0800</pubDate>
+      <pubDate>Wed, 06 Jan 2021 00:00:00 +0800</pubDate>
       
       <guid>/posts/2022-07-06-clickhouse-json-change/</guid>
       <description>Imagine you have 10 columns with long arrays that you would like to put together into one json field.
@@ -21,12 +21,45 @@ SELECT *, arrayMap(x -&amp;gt; x + 1, range(length(params1))) as len, arrayMap(x
     </item>
     
     <item>
-      <title>ltv using sql and clickhouse</title>
+      <title>google colab in online education</title>
+      <link>/posts/2022-07-06-clickhouse-json-change-copy/</link>
+      <pubDate>Wed, 06 Jan 2021 00:00:00 +0800</pubDate>
+      
+      <guid>/posts/2022-07-06-clickhouse-json-change-copy/</guid>
+      <description>In my courses and at work I often use Google Colab, with this tool you can write not only Pure Python code, but also deploy full-fledged applications, for debugging or development purposes of course. For this purpose I use a well-known trick, when a local host is tipped to the internet, for example via ngrok (free service at the time of writing).
+Google Colab itself is a very small virtual machine with limited permissions and resource consumption, however it can understand simple bash commands and networking, which is very useful for us.</description>
+    </item>
+    
+    <item>
+      <title>postgres: tasks from postgres interviews</title>
+      <link>/posts/2022-07-06-postgres/</link>
+      <pubDate>Wed, 06 Jan 2021 00:00:00 +0800</pubDate>
+      
+      <guid>/posts/2022-07-06-postgres/</guid>
+      <description>Task 1: Emulation of rank()
+The essence of the task, for each value denote its number in the ranking by a given field, here it is better to show an example. Column rank, gives the necessary result. And the actual query that solves our problem
+SELECT user, value, rank() OVER (ORDER BY value DESC) FROM table +------+-------+------+ | user | value | rank | +------+-------+------+ | 3 | 50 | 1 | | 1 | 10 | 2 | | 4 | 10 | 2 | | 5 | 6 | 4 | | 2 | 5 | 5 | +------+-------+------+ Let&amp;rsquo;s try to solve it without window functions, the first time I was asked to do it I was very dumb, and I started to move in the right direction, but fatigue after about an hour of interview overcame me :)</description>
+    </item>
+    
+    <item>
+      <title>clickhouse: ltv using sql and clickhouse</title>
       <link>/posts/2020-07-06-strange-post/</link>
       <pubDate>Mon, 06 Jan 2020 00:00:00 +0800</pubDate>
       
       <guid>/posts/2020-07-06-strange-post/</guid>
       <description>ClickHouse doesn&amp;rsquo;t have window functions, but there is a workaround, arrays, which allow you to process chunks of data lying in the same structure, just like you do in Python with list. In this article I want to tell you about a couple of useful applications of the range() function, which can generate a sequence of integers in an array. And the arrayJoin function knows how to expand data from an array into a column, that&amp;rsquo;s the story around which this article will be arrayJoin(range())</description>
+    </item>
+    
+    <item>
+      <title>python: cooking pandas</title>
+      <link>/posts/2022-07-06-pandas/</link>
+      <pubDate>Mon, 06 Jan 2020 00:00:00 +0800</pubDate>
+      
+      <guid>/posts/2022-07-06-pandas/</guid>
+      <description>Reading big data
+A very useful feature of Pandas is iterating over a dataframe, if suddenly it doesn&amp;rsquo;t fit into memory (it often happens in real work).
+data_iter = pd.read_csv(&amp;#39;babynames.csv&amp;#39;, chunksize=1000) def data_prep(df, func): &amp;#34;&amp;#34;&amp;#34; Filtering data &amp;#34;&amp;#34;&amp;#34; for chunk in df: tmp = func(chunk) tmp.to_csv(&amp;#39;dataset.csv&amp;#39;) def func_filter(data): return data.head(5) data_prep(data_iter, func_filter) Reducing the size of a data frame
+When reading a table in pandas there is a possibility to influence the size of the occupied data by reducing the amount of memory allocated, but you should be careful with this, if you have very large numbers, reducing 64 bits to 32 can simply cause an overflow and incorrect data.</description>
     </item>
     
   </channel>

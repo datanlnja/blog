@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang=""><head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+   <meta name="description" content="Task 1: Emulation of rank()
+The essence of the task, for each value denote its number in the ranking by a given field, here it is better to show an example. Column rank, gives the necessary result. And the actual query that solves our problem
+SELECT user, value, rank() OVER (ORDER BY value DESC) FROM table &#43;------&#43;-------&#43;------&#43; | user | value | rank | &#43;------&#43;-------&#43;------&#43; | 3 | 50 | 1 | | 1 | 10 | 2 | | 4 | 10 | 2 | | 5 | 6 | 4 | | 2 | 5 | 5 | &#43;------&#43;-------&#43;------&#43; Let&rsquo;s try to solve it without window functions, the first time I was asked to do it I was very dumb, and I started to move in the right direction, but fatigue after about an hour of interview overcame me :)">  
+
+  <title>
+    
+      postgres: tasks from postgres interviews
+    
+  </title>
+
+
+  <link rel="shortcut icon" type="image/x-icon" href="/" />
+  
+  
+  
+  <link rel="stylesheet" href="/css/main.c5af9bae99b4a3d315b9f39305ffff27e9c3383fbbfd8b5fcaf2237667021a333a982fb958d1813a720b0a660b14022337553ae1ca93ef2ee17c4ae628ac19cb.css" integrity="sha512-xa&#43;brpm0o9MVufOTBf//J&#43;nDOD&#43;7/YtfyvIjdmcCGjM6mC&#43;5WNGBOnILCmYLFAIjN1U64cqT7y7hfErmKKwZyw==" />
+  
+</head>
+<body a="white">
+        <main class="page-content" aria-label="Content">
+            <div class="w">
+<a href="/">帰る</a>
+
+
+<article>
+    <p class="post-meta">
+        <time datetime="2021-01-06 00:00:00 &#43;0800 &#43;0800">
+            2021
+        </time>
+    </p>
+
+    <h1>postgres: tasks from postgres interviews</h1>
+
+    
+
+    <p><strong>Task 1: Emulation of rank()</strong></p>
+<p>The essence of the task, for each value denote its number in the ranking by a given field, here it is better to show an example. Column rank, gives the necessary result. And the actual query that solves our problem</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql"><span style="color:#f00">SELECT</span> <span style="color:#f00">user</span>, 
+       value, 
+       rank() OVER (<span style="color:#f00">ORDER</span> <span style="color:#f00">BY</span> value <span style="color:#f00">DESC</span>)
+<span style="color:#f00">FROM</span> <span style="color:#f00">table</span>
+
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql">+<span style="color:#0f0">------+-------+------+
+</span><span style="color:#0f0"></span>| <span style="color:#f00">user</span> | value | rank |
++<span style="color:#0f0">------+-------+------+
+</span><span style="color:#0f0"></span>|    <span style="color:#f60">3</span> |    <span style="color:#f60">50</span> |    <span style="color:#f60">1</span> |
+|    <span style="color:#f60">1</span> |    <span style="color:#f60">10</span> |    <span style="color:#f60">2</span> |
+|    <span style="color:#f60">4</span> |    <span style="color:#f60">10</span> |    <span style="color:#f60">2</span> |
+|    <span style="color:#f60">5</span> |     <span style="color:#f60">6</span> |    <span style="color:#f60">4</span> |
+|    <span style="color:#f60">2</span> |     <span style="color:#f60">5</span> |    <span style="color:#f60">5</span> |
++<span style="color:#0f0">------+-------+------+
+</span></code></pre></div><p>Let&rsquo;s try to solve it without window functions, the first time I was asked to do it I was very dumb, and I started to move in the right direction, but fatigue after about an hour of interview overcame me :)</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql"><span style="color:#f00">SELECT</span> t1.<span style="color:#f00">user</span>, <span style="color:#f00">count</span>(<span style="color:#f60">1</span>) <span style="color:#f00">as</span> rank
+<span style="color:#f00">FROM</span> <span style="color:#f00">public</span>.test t1
+    <span style="color:#f00">cross</span> <span style="color:#f00">join</span> <span style="color:#f00">public</span>.test t2
+<span style="color:#f00">where</span> t1.value &lt;= t2.value
+<span style="color:#f00">group</span> <span style="color:#f00">by</span> t1.<span style="color:#f00">user</span>
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql">+<span style="color:#0f0">------+------+
+</span><span style="color:#0f0"></span>| <span style="color:#f00">user</span> | rank |
++<span style="color:#0f0">------+------+
+</span><span style="color:#0f0"></span>|    <span style="color:#f60">3</span> |    <span style="color:#f60">1</span> |
+|    <span style="color:#f60">4</span> |    <span style="color:#f60">3</span> |
+|    <span style="color:#f60">1</span> |    <span style="color:#f60">3</span> |
+|    <span style="color:#f60">5</span> |    <span style="color:#f60">4</span> |
+|    <span style="color:#f60">2</span> |    <span style="color:#f60">5</span> |
++<span style="color:#0f0">------+------+
+</span></code></pre></div><p>Here is the solution, it is very simple in fact, the idea is that when jojing and filtering we will get the number of rows equal to the place in the rating for a given value. Overall the solution is not difficult, like the problem, you just need to think a little bit. But there is a subtle point, if you have repeating values then you get missing rows depending on how many repeats you have, in our case it is 2 repeats, on the other hand, it is logical to think that they share n and n-1 place.</p>
+<p><strong>Task 2: Counting user sessions</strong></p>
+<p>I don&rsquo;t know why every 2nd interview likes to give this task in different variations, nevertheless the essence is the same. There are also many solutions to this task, but we will try to solve it through window functions, as my favourite way of solving it. Let&rsquo;s take one of the simplest variants of the problem, for each user we have a log of his data that we take every 5 minutes, if the difference between the two intervals is greater, then it is a new session, we need to mark each session.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql">+<span style="color:#0f0">------+----------------------------+
+</span><span style="color:#0f0"></span>| <span style="color:#f00">user</span> |           login            |
++<span style="color:#0f0">------+----------------------------+
+</span><span style="color:#0f0"></span>|    <span style="color:#f60">1</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">05</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |
+|    <span style="color:#f60">1</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">10</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |
+|    <span style="color:#f60">1</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">15</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |
+|    <span style="color:#f60">1</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">20</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |
+|    <span style="color:#f60">1</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">25</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |
+|    <span style="color:#f60">1</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">10</span>:<span style="color:#f60">05</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |
+|    <span style="color:#f60">1</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">40</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |
+|    <span style="color:#f60">1</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">30</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |
+|    <span style="color:#f60">1</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">10</span>:<span style="color:#f60">20</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |
+|    <span style="color:#f60">1</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">10</span>:<span style="color:#f60">10</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |
+|    <span style="color:#f60">1</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">05</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |
+|    <span style="color:#f60">2</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">10</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |
+|    <span style="color:#f60">2</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">15</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |
+|    <span style="color:#f60">2</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">20</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |
+|    <span style="color:#f60">2</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">25</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |
+|    <span style="color:#f60">2</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">10</span>:<span style="color:#f60">05</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |
+|    <span style="color:#f60">2</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">40</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |
+|    <span style="color:#f60">2</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">30</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |
+|    <span style="color:#f60">2</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">10</span>:<span style="color:#f60">20</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |
+|    <span style="color:#f60">2</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">10</span>:<span style="color:#f60">10</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |
++<span style="color:#0f0">------+----------------------------+
+</span></code></pre></div><p>First of all, let&rsquo;s sort the data and apply the lag function to shift the data by 1 value downwards</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql"><span style="color:#f00">SELECT</span> t1.<span style="color:#f00">user</span>, 
+       login, 
+       lag(login, <span style="color:#f60">1</span>, <span style="color:#f00">NULL</span>) OVER 
+            (PARTITION <span style="color:#f00">BY</span> 
+                t1.<span style="color:#f00">user</span> <span style="color:#f00">ORDER</span> <span style="color:#f00">BY</span> t1.<span style="color:#f00">user</span>, 
+                login) next_log
+<span style="color:#f00">FROM</span> <span style="color:#f00">table</span> t1
+</code></pre></div><p>Now let&rsquo;s subtract the offset and see the difference between the 2 repeating values and then apply the cumulative sum function, this is exactly what will give us the result we need.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql"><span style="color:#f00">select</span> *, 
+       <span style="color:#f00">sum</span>(ind) over 
+       (PARTITION <span style="color:#f00">BY</span> t3.<span style="color:#f00">user</span> 
+       <span style="color:#f00">ORDER</span> <span style="color:#f00">BY</span> t3.<span style="color:#f00">user</span> <span style="color:#f00">rows</span> 
+       <span style="color:#f00">between</span> unbounded preceding <span style="color:#f00">and</span> <span style="color:#f00">current</span> <span style="color:#f00">row</span>) <span style="color:#f00">as</span> sessions
+<span style="color:#f00">from</span> (
+       <span style="color:#f00">select</span> t2.<span style="color:#f00">user</span>,
+              login,
+              <span style="color:#f00">case</span>
+              <span style="color:#f00">when</span> (login-prev_log) &gt; <span style="color:#87ceeb">&#39;5 mins&#39;</span> <span style="color:#f00">then</span> <span style="color:#f60">1</span>
+              <span style="color:#f00">else</span> <span style="color:#f60">0</span>
+              <span style="color:#f00">end</span> ind
+       <span style="color:#f00">from</span> (
+              <span style="color:#f00">SELECT</span> t1.<span style="color:#f00">user</span>,
+                     login,
+                     lag(login, <span style="color:#f60">1</span>, <span style="color:#f00">NULL</span>) 
+                     OVER (PARTITION <span style="color:#f00">BY</span> t1.<span style="color:#f00">user</span> 
+                     <span style="color:#f00">ORDER</span> <span style="color:#f00">BY</span> t1.<span style="color:#f00">user</span>, login) prev_log
+              <span style="color:#f00">FROM</span> <span style="color:#f00">table</span> t1) t2
+     ) t3
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql">+<span style="color:#0f0">------+----------------------------+-----+----------+
+</span><span style="color:#0f0"></span>| <span style="color:#f00">user</span> |           login            | ind | sessions |
++<span style="color:#0f0">------+----------------------------+-----+----------+
+</span><span style="color:#0f0"></span>|    <span style="color:#f60">1</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">10</span>:<span style="color:#f60">05</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |   <span style="color:#f60">0</span> |        <span style="color:#f60">0</span> |
+|    <span style="color:#f60">1</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">10</span>:<span style="color:#f60">10</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |   <span style="color:#f60">0</span> |        <span style="color:#f60">0</span> |
+|    <span style="color:#f60">1</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">10</span>:<span style="color:#f60">15</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |   <span style="color:#f60">0</span> |        <span style="color:#f60">0</span> |
+|    <span style="color:#f60">1</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">10</span>:<span style="color:#f60">20</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |   <span style="color:#f60">0</span> |        <span style="color:#f60">0</span> |
+|    <span style="color:#f60">1</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">05</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |   <span style="color:#f60">1</span> |        <span style="color:#f60">1</span> |
+|    <span style="color:#f60">1</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">10</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |   <span style="color:#f60">0</span> |        <span style="color:#f60">1</span> |
+|    <span style="color:#f60">1</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">15</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |   <span style="color:#f60">0</span> |        <span style="color:#f60">1</span> |
+|    <span style="color:#f60">1</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">20</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |   <span style="color:#f60">0</span> |        <span style="color:#f60">1</span> |
+|    <span style="color:#f60">1</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">25</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |   <span style="color:#f60">0</span> |        <span style="color:#f60">1</span> |
+|    <span style="color:#f60">1</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">30</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |   <span style="color:#f60">0</span> |        <span style="color:#f60">1</span> |
+|    <span style="color:#f60">2</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">10</span>:<span style="color:#f60">05</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |   <span style="color:#f60">0</span> |        <span style="color:#f60">0</span> |
+|    <span style="color:#f60">2</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">10</span>:<span style="color:#f60">10</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |   <span style="color:#f60">0</span> |        <span style="color:#f60">0</span> |
+|    <span style="color:#f60">2</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">10</span>:<span style="color:#f60">15</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |   <span style="color:#f60">0</span> |        <span style="color:#f60">0</span> |
+|    <span style="color:#f60">2</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">10</span>:<span style="color:#f60">20</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |   <span style="color:#f60">0</span> |        <span style="color:#f60">0</span> |
+|    <span style="color:#f60">2</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">05</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |   <span style="color:#f60">1</span> |        <span style="color:#f60">1</span> |
+|    <span style="color:#f60">2</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">10</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |   <span style="color:#f60">0</span> |        <span style="color:#f60">1</span> |
+|    <span style="color:#f60">2</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">15</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |   <span style="color:#f60">0</span> |        <span style="color:#f60">1</span> |
+|    <span style="color:#f60">2</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">20</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |   <span style="color:#f60">0</span> |        <span style="color:#f60">1</span> |
+|    <span style="color:#f60">2</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">25</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |   <span style="color:#f60">0</span> |        <span style="color:#f60">1</span> |
+|    <span style="color:#f60">2</span> | <span style="color:#f60">2020</span>-<span style="color:#f60">10</span>-<span style="color:#f60">12</span> <span style="color:#f60">20</span>:<span style="color:#f60">30</span>:<span style="color:#f60">00</span>.<span style="color:#f60">000000</span> |   <span style="color:#f60">0</span> |        <span style="color:#f60">1</span> |
++<span style="color:#0f0">------+----------------------------+-----+----------+
+</span></code></pre></div>
+</article>
+
+            </div>
+        </main>
+    </body></html>
