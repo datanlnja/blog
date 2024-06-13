@@ -9,7 +9,12 @@
   
   <url>
     <loc>/posts/2022-07-06-clickhouse-json-change/</loc>
-    <lastmod>2021-01-06T00:00:00+08:00</lastmod>
+    <lastmod>2022-01-06T00:00:00+08:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>/posts/</loc>
+    <lastmod>2022-01-06T00:00:00+08:00</lastmod>
   </url>
   
   <url>
@@ -19,11 +24,6 @@
   
   <url>
     <loc>/posts/2022-07-06-postgres/</loc>
-    <lastmod>2021-01-06T00:00:00+08:00</lastmod>
-  </url>
-  
-  <url>
-    <loc>/posts/</loc>
     <lastmod>2021-01-06T00:00:00+08:00</lastmod>
   </url>
   
